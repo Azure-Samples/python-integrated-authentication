@@ -1,0 +1,5 @@
+flask
+requests
+azure.identity
+azure.keyvault.secrets
+azure.storage.queue
