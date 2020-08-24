@@ -8,7 +8,6 @@ __pycache__/
 bin
 obj
 appsettings.json
-local.settings.json
 .python_packages
 .deployment
 .env
