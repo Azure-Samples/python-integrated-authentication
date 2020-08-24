@@ -24,3 +24,4 @@ az storage message get --connection-string $MAIN_APP_STORAGE_CONN_STRING --queue
 
 echo "After a few minutes, you may start to see earlier messages in the queue."
 echo "To clear the queue, run the command in clear_queue.cmd."
+

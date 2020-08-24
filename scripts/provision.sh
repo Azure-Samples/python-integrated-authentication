@@ -1,7 +1,9 @@
-set +x
-
 # Azure CLI script to provision the eight Azure resources needed for
 # the sample. The resources are numbered in parenthases.
+
+# Be sure to run this script with source ./provision.sh to set environment
+# variables in the current session. By doing so, you have those variables
+# in place if you want to run test.sh again or repeat other commands.
 
 # Sign in to Azure
 
@@ -15,37 +17,34 @@ az login
 
 for id in $(az account show --query id --output tsv)
 do
-    AZURE_SUBSCRIPTION_ID=$id
+    export AZURE_SUBSCRIPTION_ID=$id
 done
 
 # Set an Azure location to use: note that not all services are available in
 # all regions.
 
-AZURE_LOCATION=centralus
+export AZURE_LOCATION=centralus
 
 # Setup: Create environment variables to use as resource names
 
 # First, the resource group, which need be unique only within your
 # subscription.
 
-SCENARIO_RG=auth-scenario-rg
+export SCENARIO_RG=auth-scenario-rg
 
 # Many resource names must be unique across Azure. To ensure uniqueness,
 # set the PREFIX environment variable to something like your name or
-# company name, whatever value is likely to be unique. If that variable
-# is not defined, then this script creates the environment variable using
-# a random number.
+# company name, whatever value is likely to be unique. This script by 
+# default uses a random number.
 
-IF $PREFIX="";
-then
-PREFIX=$RANDOM
+export PREFIX=$RANDOM
 
 # Names that must be unique across Azure and thus use the prefix. For
 # Key Vault, names must begin with a letter so we use the prefix instead
 # as a suffix.
-MAIN_APP_NAME=$PREFIX-main-app
-THIRD_PARTY_API_APP_NAME=$PREFIX-third-party-api
-KEY_VAULT_NAME=key-vault-$PREFIX
+export MAIN_APP_NAME=$PREFIX-main-app
+export THIRD_PARTY_API_APP_NAME=$PREFIX-third-party-api
+export KEY_VAULT_NAME=key-vault-$PREFIX
 
 # App-related resources that typically use named derived from the app
 # name, often dropping hyphens where not allowed (as with storage
@@ -53,17 +52,17 @@ KEY_VAULT_NAME=key-vault-$PREFIX
 # character substitution on - for no character (nothing following the /).
 # It's the same as in Python with replace('-', '').
 
-MAIN_APP_PLAN_NAME=$MAIN_APP_NAME-plan
-MAIN_APP_STORAGE_NAME=${MAIN_APP_NAME//-/}
-THIRD_PARTY_API_STORAGE_NAME=${THIRD_PARTY_API_APP_NAME//-/}
+export MAIN_APP_PLAN_NAME=$MAIN_APP_NAME-plan
+export MAIN_APP_STORAGE_NAME=${MAIN_APP_NAME//-/}
+export THIRD_PARTY_API_STORAGE_NAME=${THIRD_PARTY_API_APP_NAME//-/}
 
 # Object names used within some of the Azure resources. The third-party
 # API key is the kind of value you'd get through an app registration for
 # the API provider. The queue name is internal to the main app.
 
-THIRD_PARTY_API_SECRET_NAME=third-party-api-key
-THIRD_PARTY_API_SECRET_VALUE=d0c5atM1cr0s0ft
-STORAGE_QUEUE_NAME=code-requests
+export THIRD_PARTY_API_SECRET_NAME=third-party-api-key
+export THIRD_PARTY_API_SECRET_VALUE=d0c5atM1cr0s0ft
+export STORAGE_QUEUE_NAME=code-requests
 
 # We're now ready to provision resources.
 
@@ -121,7 +120,7 @@ echo "Retrieving master access key for the Azure Functions app"
 
 for key in $(az rest --method post --uri "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$SCENARIO_RG/providers/Microsoft.Web/sites/$THIRD_PARTY_API_APP_NAME/host/default/listKeys?api-version=2018-11-01" --query masterKey --output tsv);
 do
-    AZURE_FUNCTIONS_APP_KEY=$key
+    export AZURE_FUNCTIONS_APP_KEY=$key
 done
 
 # Now use the Functions key management to set the function-level access key.
@@ -131,7 +130,7 @@ done
 
 echo "Setting function key $THIRD_PARTY_API_SECRET_NAME to value $THIRD_PARTY_API_SECRET_VALUE"
 
-az rest --method put --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --body '{"name": "$THIRD_PARTY_API_SECRET_NAME", "value":"$THIRD_PARTY_API_SECRET_VALUE"}'
+az rest --method put --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --body "{\"name\": \"$THIRD_PARTY_API_SECRET_NAME\", \"value\": \"$THIRD_PARTY_API_SECRET_VALUE\"}"
 
 # You can use the following command to retrieve the key from Azure
 # Functions, if desired: call az rest --method get --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --query value --output tsv
@@ -161,7 +160,7 @@ echo "Retrieving the main app object ID"
 
 for id in $(az webapp identity assign --name $MAIN_APP_NAME --resource-group $SCENARIO_RG --query principalId --output tsv);
 do
-    MAIN_APP_OBJECT_ID=$id
+    export MAIN_APP_OBJECT_ID=$id
 done
 
 # Provision a storage account (7) for the main app and create a queue
@@ -177,7 +176,7 @@ echo "Retrieving storage account connection string"
 
 for conn in $(az storage account show-connection-string --resource-group $SCENARIO_RG --name $MAIN_APP_STORAGE_NAME --query connectionString --output tsv);
 do
-    MAIN_APP_STORAGE_CONN_STRING=$conn
+    export MAIN_APP_STORAGE_CONN_STRING=$conn
 done
 
 # Create a queue within the storage account
@@ -262,8 +261,10 @@ echo "Press any key to test the deployment by running test.sh."
 echo -n "It will take a few moments for the app to start."
 read
 
+chmod +x test.sh
 ./test.sh
 
-echo "Feel free to run test.sh again, which is now faster. If you wait a few minutes, however, the message index resets. In that case, remove all messages from the queue with the `az storage message clear` command, or use the Azure portal to clear the queue."
+echo ""
+echo "Feel free to run test.sh again, which is now faster. If you wait a few minutes, however, the message index resets. In that case, remove all messages from the queue with the az storage message clear command, or use the Azure portal to clear the queue."
 
 # az storage message get --connection-string $MAIN_APP_STORAGE_CONN_STRING --queue-name $STORAGE_QUEUE_NAME
