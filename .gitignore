@@ -3,6 +3,23 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
+# Azure Functions and App Service artifacts
+bin
+obj
+appsettings.json
+.python_packages
+.deployment
+.env
+
+# VS Code artifacts
+.vscode
+
+# Azure CLI artifacts
+.azure
+
+
+
 # C extensions
 *.so
 
@@ -127,3 +144,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
