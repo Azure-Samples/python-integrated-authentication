@@ -1,6 +1,6 @@
 # Integrated security with Azure Active Directory and Key Vault
 
-This sample accompanies the article [Integrated authentication for Python apps with Azure services](https://docs.microsoft.com/azure/developer/python/walkthrough-tutorial-authentication-01). The sample specifically contains the code described in the article along with Azure CLI scripts to provision the entire sample in your own Azure subscription.
+This sample accompanies the article [Integrated authentication for Python apps with Azure services](https://docs.microsoft.com/en-us/azure/developer/python/walkthrough-tutorial-authentication-01). The sample specifically contains the code described in the article along with Azure CLI scripts to provision the entire sample in your own Azure subscription.
 
 - *main_app* contains a simple Flask main app code that's deployed to Azure App Service. The app has a main page that points to its own open API endpoint that generates a JSON response and writes a message to Azure Queue storage.
 
