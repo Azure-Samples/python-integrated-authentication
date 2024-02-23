@@ -17,7 +17,7 @@ for /f %%i in ('az account show --query id --output tsv') do set AZURE_SUBSCRIPT
 :: Set an Azure location to use: note that not all services are available in
 :: all regions.
 
-set AZURE_LOCATION=centralus
+set AZURE_LOCATION=westus
 
 :: Setup: Create environment variables to use as resource names
 
@@ -87,7 +87,7 @@ call az storage account create --name %THIRD_PARTY_API_STORAGE_NAME% --location 
 
 echo Provisioning Azure Functions app %THIRD_PARTY_API_APP_NAME%
 
-call az functionapp create --resource-group %SCENARIO_RG% --os-type Linux --consumption-plan-location %AZURE_LOCATION% --runtime python --runtime-version 3.7 --functions-version 2 --name %THIRD_PARTY_API_APP_NAME% --storage-account %THIRD_PARTY_API_STORAGE_NAME%
+call az functionapp create --resource-group %SCENARIO_RG% --os-type Linux --consumption-plan-location %AZURE_LOCATION% --runtime python --runtime-version 3.10 --functions-version 4 --name %THIRD_PARTY_API_APP_NAME% --storage-account %THIRD_PARTY_API_STORAGE_NAME%
 
 echo Waiting 60 seconds for Functions app to complete, then deploying third-party API app code
 
@@ -113,7 +113,8 @@ cd ../scripts
 
 echo Retrieving master access key for the Azure Functions app
 
-for /f %%i in ('az rest --method post --uri "/subscriptions/%AZURE_SUBSCRIPTION_ID%/resourceGroups/%SCENARIO_RG%/providers/Microsoft.Web/sites/%THIRD_PARTY_API_APP_NAME%/host/default/listKeys?api-version=2018-11-01" --query masterKey --output tsv') do set AZURE_FUNCTIONS_APP_KEY=%%i
+:: for /f %%i in ('az rest --method post --uri "/subscriptions/%AZURE_SUBSCRIPTION_ID%/resourceGroups/%SCENARIO_RG%/providers/Microsoft.Web/sites/%THIRD_PARTY_API_APP_NAME%/host/default/listKeys?api-version=2018-11-01" --query masterKey --output tsv') do set AZURE_FUNCTIONS_APP_KEY=%%i
+for /f %%i in ('az functionapp keys list -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --query masterKey --output tsv') do set AZURE_FUNCTIONS_APP_KEY=%%i
 
 :: Now use the Functions key management to set the function-level access key.
 :: When deployed, the function has a default key, but we want to demonstrate
@@ -122,7 +123,13 @@ for /f %%i in ('az rest --method post --uri "/subscriptions/%AZURE_SUBSCRIPTION_
 
 echo Setting function key %THIRD_PARTY_API_SECRET_NAME% to value %THIRD_PARTY_API_SECRET_VALUE%
 
-call az rest --method put --uri "https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/admin/functions/RandomNumber/keys/%THIRD_PARTY_API_SECRET_NAME%?code=%AZURE_FUNCTIONS_APP_KEY%" --body "{\"name\": \"%THIRD_PARTY_API_SECRET_NAME%\", \"value\":\"%THIRD_PARTY_API_SECRET_VALUE%\"}"
+:: call az rest --method put --uri "https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/admin/functions/RandomNumber/keys/%THIRD_PARTY_API_SECRET_NAME%?code=%AZURE_FUNCTIONS_APP_KEY%" --body "{\"name\": \"%THIRD_PARTY_API_SECRET_NAME%\", \"value\":\"%THIRD_PARTY_API_SECRET_VALUE%\"}"
+call az functionapp function keys set -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --function-name RandomNumber --key-name %THIRD_PARTY_API_SECRET_NAME% --key-value %THIRD_PARTY_API_SECRET_VALUE% 
+
+echo List the key values for the RandomNumber function
+
+call az functionapp function keys list -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --function-name RandomNumber
+
 
 :: You can use the following command to retrieve the key from Azure
 :: Functions, if desired: call az rest --method get --uri "https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/admin/functions/RandomNumber/keys/%THIRD_PARTY_API_SECRET_NAME%?code=%AZURE_FUNCTIONS_APP_KEY%" --query value --output tsv
@@ -193,6 +200,10 @@ call az role assignment create --assignee %MAIN_APP_OBJECT_ID% --role "Storage Q
 echo Creating app settings for the main web app
 
 call az webapp config appsettings set --name %MAIN_APP_NAME% --resource-group %SCENARIO_RG% --settings KEY_VAULT_URL="https://%KEY_VAULT_NAME%.vault.azure.net/" THIRD_PARTY_API_ENDPOINT="https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/api/RandomNumber" THIRD_PARTY_API_SECRET_NAME="%THIRD_PARTY_API_SECRET_NAME%" STORAGE_QUEUE_URL="https://%MAIN_APP_STORAGE_NAME%.queue.core.windows.net/%STORAGE_QUEUE_NAME%"
+
+echo List app settings values for the main web app
+
+call az webapp config appsettings list --name %MAIN_APP_NAME% --resource-group %SCENARIO_RG%
 
 cd ../scripts
 
