@@ -97,12 +97,22 @@ cd ../third_party_api
 call func azure functionapp publish %THIRD_PARTY_API_APP_NAME%
 cd ../scripts
 
-:: Set a function-level access key to secure the endpoint. This action
-:: must be done directly through an HTTP request, as neither the Azure CLI
-:: nor Azure Functions Core Tools currently support this capability. We
-:: use the Azure CLI az rest command for this purpose along with the
-:: Azure Functions Key Management REST API.
-::
+:: Set a function-level access key to secure the endpoint.
+:: When deployed, the function has a default key, but we want to demonstrate
+:: setting a specific API key as would happen with individual client app
+:: registrations.
+
+echo Setting function key %THIRD_PARTY_API_SECRET_NAME% to value %THIRD_PARTY_API_SECRET_VALUE%
+
+call az functionapp function keys set -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --function-name RandomNumber --key-name %THIRD_PARTY_API_SECRET_NAME% --key-value %THIRD_PARTY_API_SECRET_VALUE% 
+
+echo List the key values for the RandomNumber function
+
+call az functionapp function keys list -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --function-name RandomNumber
+
+:: Alternatively, you can use the Azure CLI az rest command to set the 
+:: function-level access key along with the Azure Functions Key Management REST API.
+:: 
 :: References:
 :: https://docs.microsoft.com/cli/azure/reference-index?view=azure-cli-latest#az-rest
 :: https://github.com/Azure/azure-functions-host/wiki/Key-management-API
@@ -110,29 +120,22 @@ cd ../scripts
 :: This first command retrieves the _master key from the Functions app and
 :: stores it in  an environment variable AZURE_FUNCTIONS_APP_KEY, which can
 :: then be used in further HTTP requests to set the function-level access key.
-
-echo Retrieving master access key for the Azure Functions app
-
+::
+:: echo Retrieving master access key for the Azure Functions app
 :: for /f %%i in ('az rest --method post --uri "/subscriptions/%AZURE_SUBSCRIPTION_ID%/resourceGroups/%SCENARIO_RG%/providers/Microsoft.Web/sites/%THIRD_PARTY_API_APP_NAME%/host/default/listKeys?api-version=2018-11-01" --query masterKey --output tsv') do set AZURE_FUNCTIONS_APP_KEY=%%i
-for /f %%i in ('az functionapp keys list -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --query masterKey --output tsv') do set AZURE_FUNCTIONS_APP_KEY=%%i
-
+::
 :: Now use the Functions key management to set the function-level access key.
 :: When deployed, the function has a default key, but we want to demonstrate
 :: setting a specific API key as would happen with individual client app
 :: registrations.
-
-echo Setting function key %THIRD_PARTY_API_SECRET_NAME% to value %THIRD_PARTY_API_SECRET_VALUE%
-
+::
+:: echo Setting function key %THIRD_PARTY_API_SECRET_NAME% to value %THIRD_PARTY_API_SECRET_VALUE%
 :: call az rest --method put --uri "https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/admin/functions/RandomNumber/keys/%THIRD_PARTY_API_SECRET_NAME%?code=%AZURE_FUNCTIONS_APP_KEY%" --body "{\"name\": \"%THIRD_PARTY_API_SECRET_NAME%\", \"value\":\"%THIRD_PARTY_API_SECRET_VALUE%\"}"
-call az functionapp function keys set -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --function-name RandomNumber --key-name %THIRD_PARTY_API_SECRET_NAME% --key-value %THIRD_PARTY_API_SECRET_VALUE% 
-
-echo List the key values for the RandomNumber function
-
-call az functionapp function keys list -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_NAME% --function-name RandomNumber
-
-
+::
 :: You can use the following command to retrieve the key from Azure
-:: Functions, if desired: call az rest --method get --uri "https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/admin/functions/RandomNumber/keys/%THIRD_PARTY_API_SECRET_NAME%?code=%AZURE_FUNCTIONS_APP_KEY%" --query value --output tsv
+:: Functions, if desired: 
+::
+:: call az rest --method get --uri "https://%THIRD_PARTY_API_APP_NAME%.azurewebsites.net/admin/functions/RandomNumber/keys/%THIRD_PARTY_API_SECRET_NAME%?code=%AZURE_FUNCTIONS_APP_KEY%" --query value --output tsv
 
 
 :: Part 3: Deploy the main app to Azure App Service.
