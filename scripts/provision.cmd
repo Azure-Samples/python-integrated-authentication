@@ -116,7 +116,7 @@ call az functionapp function keys list -g %SCENARIO_RG% -n %THIRD_PARTY_API_APP_
 :: References:
 :: https://docs.microsoft.com/cli/azure/reference-index?view=azure-cli-latest#az-rest
 :: https://github.com/Azure/azure-functions-host/wiki/Key-management-API
-
+::
 :: This first command retrieves the _master key from the Functions app and
 :: stores it in  an environment variable AZURE_FUNCTIONS_APP_KEY, which can
 :: then be used in further HTTP requests to set the function-level access key.
