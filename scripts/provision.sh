@@ -23,7 +23,7 @@ done
 # Set an Azure location to use: note that not all services are available in
 # all regions.
 
-export AZURE_LOCATION=centralus
+export AZURE_LOCATION=westus
 
 # Setup: Create environment variables to use as resource names
 
@@ -92,7 +92,7 @@ az storage account create --name $THIRD_PARTY_API_STORAGE_NAME --location $AZURE
 
 echo "Provisioning Azure Functions app $THIRD_PARTY_API_APP_NAME"
 
-az functionapp create --resource-group $SCENARIO_RG --os-type Linux --consumption-plan-location $AZURE_LOCATION --runtime python --runtime-version 3.7 --functions-version 2 --name $THIRD_PARTY_API_APP_NAME --storage-account $THIRD_PARTY_API_STORAGE_NAME
+az functionapp create --resource-group $SCENARIO_RG --os-type Linux --consumption-plan-location $AZURE_LOCATION --runtime python --runtime-version 3.10 --functions-version 4 --name $THIRD_PARTY_API_APP_NAME --storage-account $THIRD_PARTY_API_STORAGE_NAME
 
 echo "Waiting 60 seconds for Functions app to complete, then deploying third-party API app code"
 
@@ -102,38 +102,50 @@ cd ../third_party_api
 func azure functionapp publish $THIRD_PARTY_API_APP_NAME
 cd ../scripts
 
-# Set a function-level access key to secure the endpoint. This action
-# must be done directly through an HTTP request, as neither the Azure CLI
-# nor Azure Functions Core Tools currently support this capability. We
-# use the Azure CLI az rest command for this purpose along with the
-# Azure Functions Key Management REST API.
-#
-# References:
-# https://docs.microsoft.com/cli/azure/reference-index?view=azure-cli-latest#az-rest
-# https://github.com/Azure/azure-functions-host/wiki/Key-management-API
-
-# This first command retrieves the _master key from the Functions app and
-# stores it in  an environment variable AZURE_FUNCTIONS_APP_KEY, which can
-# then be used in further HTTP requests to set the function-level access key.
-
-echo "Retrieving master access key for the Azure Functions app"
-
-for key in $(az rest --method post --uri "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$SCENARIO_RG/providers/Microsoft.Web/sites/$THIRD_PARTY_API_APP_NAME/host/default/listKeys?api-version=2018-11-01" --query masterKey --output tsv);
-do
-    export AZURE_FUNCTIONS_APP_KEY=$key
-done
-
-# Now use the Functions key management to set the function-level access key.
+# Set a function-level access key to secure the endpoint.
 # When deployed, the function has a default key, but we want to demonstrate
 # setting a specific API key as would happen with individual client app
 # registrations.
 
 echo "Setting function key $THIRD_PARTY_API_SECRET_NAME to value $THIRD_PARTY_API_SECRET_VALUE"
 
-az rest --method put --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --body "{\"name\": \"$THIRD_PARTY_API_SECRET_NAME\", \"value\": \"$THIRD_PARTY_API_SECRET_VALUE\"}"
+az functionapp function keys set -g $SCENARIO_RG -n $THIRD_PARTY_API_APP_NAME --function-name RandomNumber --key-name $THIRD_PARTY_API_SECRET_NAME --key-value $THIRD_PARTY_API_SECRET_VALUE 
 
+echo "List the key values for the RandomNumber function"
+
+az functionapp function keys list -g $SCENARIO_RG -n $THIRD_PARTY_API_APP_NAME --function-name RandomNumber
+
+# Alternatively, you can use the Azure CLI az rest command to set the 
+# function-level access key along with the Azure Functions Key Management REST API.
+#
+# References:
+# https://docs.microsoft.com/cli/azure/reference-index?view=azure-cli-latest#az-rest
+# https://github.com/Azure/azure-functions-host/wiki/Key-management-API
+#
+# This first command retrieves the _master key from the Functions app and
+# stores it in  an environment variable AZURE_FUNCTIONS_APP_KEY, which can
+# then be used in further HTTP requests to set the function-level access key.
+#
+# echo "Retrieving master access key for the Azure Functions app"
+#
+# for key in $(az rest --method post --uri "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$SCENARIO_RG/providers/Microsoft.Web/sites/$THIRD_PARTY_API_APP_NAME/host/default/listKeys?api-version=2018-11-01" --query masterKey --output tsv);
+# do
+#     export AZURE_FUNCTIONS_APP_KEY=$key
+# done
+#
+# Now use the Functions key management to set the function-level access key.
+# When deployed, the function has a default key, but we want to demonstrate
+# setting a specific API key as would happen with individual client app
+# registrations.
+#
+# echo "Setting function key $THIRD_PARTY_API_SECRET_NAME to value $THIRD_PARTY_API_SECRET_VALUE"
+#
+# az rest --method put --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --body "{\"name\": \"$THIRD_PARTY_API_SECRET_NAME\", \"value\": \"$THIRD_PARTY_API_SECRET_VALUE\"}"
+#
 # You can use the following command to retrieve the key from Azure
-# Functions, if desired: call az rest --method get --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --query value --output tsv
+# Functions, if desired: 
+#
+# az rest --method get --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/admin/functions/RandomNumber/keys/$THIRD_PARTY_API_SECRET_NAME?code=$AZURE_FUNCTIONS_APP_KEY" --query value --output tsv
 
 
 # Part 3: Deploy the main app to Azure App Service.
@@ -142,7 +154,7 @@ az rest --method put --uri "https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/
 # Key Vault because we need the app's managed identity name to set a
 # role permissions in Key Vault.
 #
-# call az webapp up creates the App Service plan (5) and App Service
+# az webapp up creates the App Service plan (5) and App Service
 # app (6), then deploys the code in the current folder.
 
 echo "Provisioning Azure App Service and deploying the main app"
@@ -207,6 +219,10 @@ az role assignment create --assignee $MAIN_APP_OBJECT_ID --role "Storage Queue D
 echo "Creating app settings for the main web app"
 
 az webapp config appsettings set --name $MAIN_APP_NAME --resource-group $SCENARIO_RG --settings KEY_VAULT_URL="https://$KEY_VAULT_NAME.vault.azure.net/" THIRD_PARTY_API_ENDPOINT="https://$THIRD_PARTY_API_APP_NAME.azurewebsites.net/api/RandomNumber" THIRD_PARTY_API_SECRET_NAME="$THIRD_PARTY_API_SECRET_NAME" STORAGE_QUEUE_URL="https://$MAIN_APP_STORAGE_NAME.queue.core.windows.net/$STORAGE_QUEUE_NAME"
+
+echo "List app settings values for the main web app"
+
+az webapp config appsettings list --name $MAIN_APP_NAME --resource-group $SCENARIO_RG
 
 cd ../scripts
 
